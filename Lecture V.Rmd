@@ -1,0 +1,193 @@
+---
+title: "Lecture V - Tues Oct 10"
+output: html_notebook
+---
+
+*Review*
+- Knowledge graphs tell you: 
+        + About things
+                + which knowledge graphs are in my dataset? Which are used in datasets I want to integrate? 
+        + About names
+                + what breath of synonyms? Are they relevant? 
+        + About relationships
+                + Useful for my question? 
+                + Granular concepts? 
+                + Does it map to other graphs?
+                + Is it a quality (ie supervised by a person) mapping? 
+                
+- Questions to ask about a *specific* graph
+        + What is the basis of classification? Does a link always mean the same thing? Does the classification make sense? 
+        + Does the lexical information make sense? Do they provide alterative names and labels? 
+        + Is it mapped to other ontologies? 
+        
+        
+Preparing data for analysis
+- How do you turn messy data into a data set that can be analysed? 
+- What forms does data come from and how do you handle it? 
+- How do these tranformations alter the answers we get 
+
+A data frame: 
+Rows = **observations** 
+Columns = **features** 
+
+eg. *What DM tx associate with lower blood sugar in patients with high blood pressure?*
+You know how to work with the dataframe.. 
+
+But how do you go from the database to the dataframe? 
+
+Usually the data is a mess of tables that may or may not clearly inter-relate... and may include images etc. 
+How do you make this into a dataframe? 
+
+Schemas: 
+- OMOP CDMv5
+- I2b2 data model
+- VDW
+- Sentinel Data Model
+- pcornet
+
+These are 'data models' used to present data to researchers. 
+
+The hope is that all OMOP CDMv5 data will be coherent... 
+this is true insofar as the features will be similar, but the decisions about how to make a subset of tables are less clearly dictated. 
+Data preparation is **time intensive** - maybe 80% of your time!
+
+*Flavours of data*
+
+Static (patient demographcis)
+Coded (prodecurse)
+Time series (monitors)
+Text (MD notes)
+Images (CXR, CT etc; but also pathology, derm etc!)
+
+The first 3 are `structured data`
+The latter categories are `unstructured data`
+There are many more bytes of unstructured data but probably more unique data items of structured data - 'cuz picture are big. 
+
+Workflow: 
+1. Define the unit of observation. In clinical studies this is usually the patient. However bear in mind that other units of observation are possible.
+        + What drugs are being used off-label to treat diseases? in this case, *drug-disease pair* could be the unit of observation! 
+        + Features from patient-level data may be used to contruct dataframes organized around non-patient units of observation. 
+2. Which features should you use? 
+        + Should you use text data? 
+        + Should you use everything? 
+        + Concept: **informative metadata**. The presence of data may be meaningful regardless of data values *per se*. 
+        + Median number of features in 150ish papers was 27. A few used 10000 or more. But most people are fairly reductive. 
+        
+        
+###**Accessing Structured Data**
+*aka SQL in cartoons*
+Database = collection of tables
+You may or may not get a dictionary or a data diagram. 
+Many thousands of tables with many many entries and hundreds of pages of documentation. 
+It can be tough to get the relevant data! 
+If you are lucky it wil follow a known schema. 
+
+SQL = structured query language
+Uses an R-like syntax to pull out data. 
+
+Next challenge: reshape long data into wide data. 
+
+And - link data by joining tables
+
+Using the Data Wrangling cheat sheet. 
+
+So you have made your table... what next? 
+
+
+###**Standardizing features**
+
+**Different scales** in different features can throw off your analysis. 
+How do you deal with this?
+
+1. Scale your data. subtract min, divide by spread. Or; 
+2. Normalize your data: subtract mean, divide by standardized deviation
+
+**Too many features?**
+Some features are useless... highly correlated, too specific etc. You will get overfitting... after a long runtime. 
+So... remove low-prevalence, low-variance features; these are NOT USEFUL. 
+
+You can also use your domain knowlege to do intelligent feature reduction... *ie* combine drugs into drug classes; or patient features into a clinical score. SNOMEDCT is a useful resource here. The challenge is finding the appropriate ontology, and the appropriate level to which to aggregate the data. Or, collapse 5-digit ICD9 codes to 3-digit codes. 
+
+Alternately, you can map between ontologies and aggregate all child nodes into a concept. This can be a powerful way to reduce features! 
+
+In practical terms: you will have a table showing relationships between nodes. You will select the desired parent level, then join this table with the long table with the child concepts, and then use the parent concepts to create a wide-format dataset. 
+
+SO: Which knowledge graph? Which level? (you could compute the information content at each level)
+Then use transitive closure table, get raw data, map to appropriate level, and `spread` to wide format. 
+
+
+**Data-drive Dimensionality Reduction**
+eg PCA 
+Find a latent feature space
+Advantage: no dependence on outside knowlege
+BUT derived features are not interpretable. The PCA components don't directly mean anything! ALSO, these latent features will differ when you run them on distinct datasets, so there is no external validity to your model. 
+
+### General advice for feature aggregation and dimensionality reduction
+
+1. The more flexible the model, the less benefit in performance or inference. More features are not better if the distinctions are not relevant to the problem you are trying to address. You will have more data and it will be more interpretable if you collate Rx into 'NSAIDs' rather than 'ibuprofen', 'naproxen' etc. 
+2. Computational benefits of aggregation will remain regardless of models (less of an issue)
+3. Thing about whether distinctions of low level features really matter!
+
+
+### What do you do about missing data? 
+
+If possible, AVOID IT. :)
+
+Are the data missing at random? Or are they missing in a non-random way? Or are they missing at random, given some assumptions? 
+
+Missingness is generally **nonrandom** in medical data. Do not assume randomness or you will create bias! 
+
+####Imputation
+
+##### Column-mean imputation
+Put the column mean instead of the missing data. Assumes there is no relationship between that column and other variables. Reduces variance of data -- gives you false confidence in statistical testing. 
+
+In general imputation methods do not give any sense of the uncertainty of the imputed data. 
+
+##### k-nearest neighbours imputation: 
+for each missing value, average over similar rows.
+
+**Practical Tip**
+For each imputed value add a feature to record if the data was imputed! this will help you to keep track of what you made up; and allow for sensitivity analyses. 
+You can include it in your model; if the imputation marker has a significant interaction in your model, you have a problem!
+
+Why not just exclude individuals with missing data? 
+You will have to exclude everyone! and your patient deletion will not be at random.
+
+##### Challenges in inputation
+The more missing data, the more difficult
+Most methods require chioces to be made.
+
+Try to use an analysis method that is robust to missing data. 
+Relative benefits in performance are often small relative to computational costs
+Think about whether the feature really matters. Can you just avoid the missing data problem? 
+
+Talk with a statistician before doing imputation! 
+
+##### Contructing features of interest
+
+You can compute dervized measures... either because the variable you want to analyze for is not recorded, or to permit adjustment of results. 
+
+Is this relevant for a prospective study? No -- you should just record the data! 
+
+>>Simple models with well-engineered features will generally do better than fancy models with raw features. 
+
+Features for health status: 
+eg scores used by MDs (CHADS, APACHE) 
+or adjustment scoring systems (Charleston, Elixhauser)
+
+Socioeconomic status: 
+Zip code
+
+Unrecorded conditions: 
+keywords in text ("cigarette in EHR")
+combination of drugs and procedures
+
+**THINK ABOUT THE BIOLOGY**
+
+As you engineer features, thing about the cost (computational, cognitive) versus the utility. 
+
+General advice
+1. Thing about things are importnatn but unmeasured
+2. Use prevalidated scores
+3. Try counts, ratios, etc. 
